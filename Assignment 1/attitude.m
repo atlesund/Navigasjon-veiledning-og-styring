@@ -33,13 +33,17 @@ Ib = m * R^2 * eye(3);       % Inertia matrix in CO
 I_inv = invQR(Ib);           % Using the highly accurate QR decomposition method to compute the matrix inverse
 
 % Initial states
-phi = -deg2rad(10);          % Initial Euler angles
+phi = -deg2rad(5);          % Initial Euler angles
 theta = deg2rad(10);
-psi = deg2rad(5);
+psi = -deg2rad(20);
 
 q = euler2q(phi,theta,psi);  % Transform initial Euler angles to q
 
 w = [0 0 0]';                % Initial angular rates
+
+% Regulator
+kp = 5.0e-05;
+kd = 9.0e-04;
 
 % Time vector initialization
 t = 0:h:T_final;                % Time vector from 0 to T_final          
@@ -51,7 +55,9 @@ simdata = zeros(nTimeSteps, 13); % Pre-allocate table for simdata
 for i = 1:nTimeSteps
 
    % Control law
-   tau = 1e-4*[0.5 1 -1]';      
+   
+   %tau = 1e-4*[0.5 1 -1]';      
+   tau = -eye(3)*kd * w - kp*q(2:end);
 
    [phi,theta,psi] = q2euler(q); % Transform q to Euler angles
    
