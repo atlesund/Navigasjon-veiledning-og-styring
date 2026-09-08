@@ -19,24 +19,11 @@
 %                            tau : Control input (3x1)
 %                            w : Angular velocity vector (3x1)
 %                            q : unit quaternion vector (4x1)
-
-
-
-function result = quatmul(q1,q2)
-    n1 = q1(1);
-    n2 = q2(1);
-    e1 = q1(2:4);  % Extract the vector part of the quaternion
-    e2 = q2(2:4);
-    result = [n1*n2 - dot(e1,e2); 
-        n1*e2 + n2*e1 + cross(e1,e2)];
-    % Till next time:
-    %...............................n1*e2 +n2*e1 ...
-    % Produces a separator [n1*e2, n2*e1] instead of [n1*e2+n2*e1,...]
-end
-
-
 %% USER INPUTS
 clc; clear;
+
+
+
 
 T_final = 400;	             % Final simulation time (s)
 h = 0.1;                     % Sampling time (s)
@@ -57,37 +44,57 @@ q = euler2q(phi,theta,psi);  % Transform initial Euler angles to q
 w = [0 0 0]';                % Initial angular rates
 
 % Regulator
-kp = 5.0e-04;
-kd = 9.0e-03;
+%kp = 5.0e-04;
+%kd = 9.0e-03;
+kp = 5.0e-03;
+kd = 9.0e-02;
 
 % Time vector initialization
 t = 0:h:T_final;                % Time vector from 0 to T_final          
 nTimeSteps = length(t);         % Number of time steps
 
 %% MAIN LOOP
-simdata = zeros(nTimeSteps, 13); % Pre-allocate table for simdata
+simdata = zeros(nTimeSteps, 16); % Pre-allocate table for simdata
+
+syms ts % Using symbolic expressions for desired theta and psi.
+theta_d = @(ts) deg2rad(15*cos(0.1*ts));
+psi_d   = @(ts) deg2rad(10*sin(0.05*ts));
+
+dtheta_d = @(ts) deg2rad(-1.5*sin(0.1*ts));
+dpsi_d   = @(ts) deg2rad(0.5*cos(0.05*ts));
 
 for i = 1:nTimeSteps
 
-    % Desired states
-    phi_desired = deg2rad(0);          % Desired Euler angles
-    theta_desired = deg2rad(15*cos(0.1*i));
-    psi_desired = deg2rad(10*sin(0.05*i));
+    % Desired time-varying states
+    phi_desired = 0;
+    theta_desired = theta_d(t(i));
+    psi_desired = psi_d(t(i));
+
+    phi_dot_desired = 0;
+    theta_dot_desired = dtheta_d(t(i));
+    psi_dot_desired = dpsi_d(t(i));
+
+    q_desired = euler2q(phi_desired, theta_desired, psi_desired);
+    q_desired_conj = [q_desired(1);
+                      -q_desired(2:4)];
+
+    q_tilde = quatmul(q_desired_conj, q);
+
+    w_desired = Tzyx(phi_desired, theta_desired) \ [0;theta_dot_desired;psi_dot_desired];
+    w_tilde = w - w_desired;
+
+    % A \ B = inv(A)*B, A / B = A*inv(B)
     
-    q_desired = euler2q(phi_desired, theta_desired,psi_desired);
-
-    q_tilde = quatmul(conj(q_desired), q);
-
 
    % Control law
    
    %tau = 1e-4*[0.5 1 -1]';      
-   tau = -eye(3)*kd * w - kp*q_tilde(2:end);
+   tau = -eye(3)*kd * w_tilde - kp*q_tilde(2:end);
 
    [phi,theta,psi] = q2euler(q); % Transform q to Euler angles
    
    % Store data for presentation
-   simdata(i,:) = [q' phi theta psi w' tau'];  % Store data in table
+   simdata(i,:) = [q' phi theta psi w' tau' q_tilde(2:4)'];  % Store data in table
    
    % State propagation: q[k+1] is computed using the matrix exponential, 
    % which serves as the exponential map for matrix Lie groups, ensuring an 
@@ -120,6 +127,7 @@ theta   = rad2deg(simdata(:,6));
 psi     = rad2deg(simdata(:,7));
 w       = rad2deg(simdata(:,8:10));  
 tau     = simdata(:,11:13);
+q_tilde = simdata(:,14:16);
 
 
 figure (1); clf;
@@ -167,17 +175,17 @@ set(findall(gcf,'type','line'),'linewidth',2)
 set(findall(gcf,'type','text'),'FontSize',14)
 set(findall(gcf,'type','legend'),'FontSize',14)
 
-figure (3); clf;
+figure (4); clf;
 hold on;
-plot(t, tau(:,1), 'b');
-plot(t, tau(:,2), 'r');
-plot(t, tau(:,3), 'g');
+plot(t, q_tilde(:,1), 'b');
+plot(t, q_tilde(:,2), 'r');
+plot(t, q_tilde(:,3), 'g');
 hold off;
 grid on;
-legend('x', 'y', 'z');
-title('Control input');
+legend('e_1', 'e_2', 'e_3');
+title('Error');
 xlabel('time [s]'); 
-ylabel('input [Nm]');
+ylabel('error [?]');
 set(findall(gcf,'type','line'),'linewidth',2)
 set(findall(gcf,'type','text'),'FontSize',14)
 set(findall(gcf,'type','legend'),'FontSize',14)
@@ -187,4 +195,19 @@ record = false;
 enable_animation = true;
 if enable_animation
     animateSatelliteSTL(t, simdata(:,5), simdata(:,6), simdata(:,7), 'satellite.stl', record);
+end
+
+
+%% LOCAL FUNCTIONS
+
+function result = quatmul(q1,q2)
+n1 = q1(1);
+n2 = q2(1);
+e1 = q1(2:4);  % Extract the vector part of the quaternion
+e2 = q2(2:4);
+result = [n1*n2 - dot(e1,e2); 
+    n1*e2 + n2*e1 + cross(e1,e2)];
+% Till next time:
+%...............................n1*e2 +n2*e1 ...
+% Produces a separator [n1*e2, n2*e1] instead of [n1*e2+n2*e1,...]
 end
