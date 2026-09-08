@@ -20,6 +20,21 @@
 %                            w : Angular velocity vector (3x1)
 %                            q : unit quaternion vector (4x1)
 
+
+
+function result = quatmul(q1,q2)
+    n1 = q1(1);
+    n2 = q2(1);
+    e1 = q1(2:4);  % Extract the vector part of the quaternion
+    e2 = q2(2:4);
+    result = [n1*n2 - dot(e1,e2); 
+        n1*e2 + n2*e1 + cross(e1,e2)];
+    % Till next time:
+    %...............................n1*e2 +n2*e1 ...
+    % Produces a separator [n1*e2, n2*e1] instead of [n1*e2+n2*e1,...]
+end
+
+
 %% USER INPUTS
 clc; clear;
 
@@ -42,8 +57,8 @@ q = euler2q(phi,theta,psi);  % Transform initial Euler angles to q
 w = [0 0 0]';                % Initial angular rates
 
 % Regulator
-kp = 5.0e-05;
-kd = 9.0e-04;
+kp = 5.0e-04;
+kd = 9.0e-03;
 
 % Time vector initialization
 t = 0:h:T_final;                % Time vector from 0 to T_final          
@@ -54,10 +69,20 @@ simdata = zeros(nTimeSteps, 13); % Pre-allocate table for simdata
 
 for i = 1:nTimeSteps
 
+    % Desired states
+    phi_desired = deg2rad(0);          % Desired Euler angles
+    theta_desired = deg2rad(15*cos(0.1*i));
+    psi_desired = deg2rad(10*sin(0.05*i));
+    
+    q_desired = euler2q(phi_desired, theta_desired,psi_desired);
+
+    q_tilde = quatmul(conj(q_desired), q);
+
+
    % Control law
    
    %tau = 1e-4*[0.5 1 -1]';      
-   tau = -eye(3)*kd * w - kp*q(2:end);
+   tau = -eye(3)*kd * w - kp*q_tilde(2:end);
 
    [phi,theta,psi] = q2euler(q); % Transform q to Euler angles
    
@@ -123,6 +148,21 @@ legend('p', 'q', 'r');
 title('Angular velocities');
 xlabel('time [s]'); 
 ylabel('angular rate [deg/s]');
+set(findall(gcf,'type','line'),'linewidth',2)
+set(findall(gcf,'type','text'),'FontSize',14)
+set(findall(gcf,'type','legend'),'FontSize',14)
+
+figure (3); clf;
+hold on;
+plot(t, tau(:,1), 'b');
+plot(t, tau(:,2), 'r');
+plot(t, tau(:,3), 'g');
+hold off;
+grid on;
+legend('x', 'y', 'z');
+title('Control input');
+xlabel('time [s]'); 
+ylabel('input [Nm]');
 set(findall(gcf,'type','line'),'linewidth',2)
 set(findall(gcf,'type','text'),'FontSize',14)
 set(findall(gcf,'type','legend'),'FontSize',14)
