@@ -23,8 +23,6 @@
 clc; clear;
 
 
-
-
 T_final = 400;	             % Final simulation time (s)
 h = 0.1;                     % Sampling time (s)
 
@@ -44,10 +42,10 @@ q = euler2q(phi,theta,psi);  % Transform initial Euler angles to q
 w = [0 0 0]';                % Initial angular rates
 
 % Regulator
-%kp = 5.0e-04;
-%kd = 9.0e-03;
-kp = 5.0e-03;
-kd = 9.0e-02;
+kp = 5.0e-04;
+kd = 9.0e-03;
+%kp = 5.0e-03;
+%kd = 9.0e-02;
 
 % Time vector initialization
 t = 0:h:T_final;                % Time vector from 0 to T_final          
@@ -62,6 +60,9 @@ psi_d   = @(ts) deg2rad(10*sin(0.05*ts));
 
 dtheta_d = @(ts) deg2rad(-1.5*sin(0.1*ts));
 dpsi_d   = @(ts) deg2rad(0.5*cos(0.05*ts));
+
+ddtheta_d = @(ts) deg2rad(-0.15*cos(0.1*ts));
+ddpsi_d   = @(ts) deg2rad(-0.025*sin(0.05*ts));
 
 for i = 1:nTimeSteps
 
@@ -81,6 +82,7 @@ for i = 1:nTimeSteps
     q_tilde = quatmul(q_desired_conj, q);
 
     w_desired = Tzyx(phi_desired, theta_desired) \ [0;theta_dot_desired;psi_dot_desired];
+    
     w_tilde = w - w_desired;
 
     % A \ B = inv(A)*B, A / B = A*inv(B)
@@ -89,7 +91,7 @@ for i = 1:nTimeSteps
    % Control law
    
    %tau = 1e-4*[0.5 1 -1]';      
-   tau = -eye(3)*kd * w_tilde - kp*q_tilde(2:end);
+   tau = -eye(3)*kd * w_tilde - kp*q_tilde(2:end) + Ib*[0; ddtheta_d(t(i)); ddpsi_d(t(i))];
 
    [phi,theta,psi] = q2euler(q); % Transform q to Euler angles
    
@@ -127,7 +129,7 @@ theta   = rad2deg(simdata(:,6));
 psi     = rad2deg(simdata(:,7));
 w       = rad2deg(simdata(:,8:10));  
 tau     = simdata(:,11:13);
-q_tilde = simdata(:,14:16);
+epsilon_tilde = simdata(:,14:16);
 
 
 figure (1); clf;
@@ -177,9 +179,9 @@ set(findall(gcf,'type','legend'),'FontSize',14)
 
 figure (4); clf;
 hold on;
-plot(t, q_tilde(:,1), 'b');
-plot(t, q_tilde(:,2), 'r');
-plot(t, q_tilde(:,3), 'g');
+plot(t, epsilon_tilde(:,1), 'b');
+plot(t, epsilon_tilde(:,2), 'r');
+plot(t, epsilon_tilde(:,3), 'g');
 hold off;
 grid on;
 legend('e_1', 'e_2', 'e_3');
