@@ -1,7 +1,4 @@
 % Project in TTK4190 Guidance, Navigation and Control of Vehicles 
-%
-% Author:           My name
-% Study program:    My study program
 
 % Add folder for 3-D visualization files
 addpath(genpath('flypath3d_v3'))
