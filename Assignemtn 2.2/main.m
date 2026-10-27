@@ -17,8 +17,8 @@ psi_ref = 10 * pi/180;  % desired yaw angle (rad)
 U_ref   = 7;            % desired surge speed (m/s)
 
 % initial states
-eta_0 = [0 0 0]';
-nu_0  = [0 0 0]';
+eta_0 = [0 0 0]'; % n: x,y,psi
+nu_0  = [0 0 0]'; % v: u,v,r (surge, sway, roll rate)
 delta_0 = 0;
 n_0 = 0;
 x = [nu_0' eta_0' delta_0 n_0]'; % The state vector can be extended with addional states here
@@ -29,22 +29,51 @@ x = [nu_0' eta_0' delta_0 n_0]'; % The state vector can be extended with addiona
 t = 0:h:T_final;                % Time vector
 nTimeSteps = length(t);         % Number of time steps
 
-simdata = zeros(nTimeSteps, 13); % Pre-allocate matrix for efficiency
+simdata = zeros(nTimeSteps, 15); % Pre-allocate matrix for efficiency
 
 for i = 1:nTimeSteps
+
+    u = x(1);
+    v = x(2);
+    r = x(3);
+    x_cor = x(4);
+    y_cor = x(5);
+    psi = x(6);
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Part 2, 1a) Add current here 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    uc = 0;
-    vc = 0;
+    Vc = 1;
+    B_vc = pi/2;
+    uc = Vc*cos(B_vc - psi);
+    vc = Vc*sin(B_vc - psi);
+    %uc = 0; vc = 0;
     nu_c = [ uc vc 0 ]';
+
+    
+    vr = v - vc;
+    ur = u - uc;
+    Ur = sqrt(vr^2 + ur^2);
+
+    crab_angle = rad2deg(atan(v/u)); % Gives angle from the x axis to the velocity vector of the craft (Fossen 2.130)
+    sideslip_angle = rad2deg(asin(vr/Ur));
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Part 2, 1c) Add wind here 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    Ywind = 0;
-    Nwind = 0;
+    Vw = 10; % wind speed
+    occurence_time = 200;
+    B_Vw = deg2rad(135); % wind direction
+    p_a = 1.247;
+    c_y = 0.95;
+    c_n = 0.15;
+    L = 161;                % length (m)
+    A_Lw = 10*L;
+
+    gamma_w = psi - B_Vw - pi; % wind angle of attack
+
+    Ywind = c_y*sin(gamma_w);
+    Nwind = c_n*sin(gamma_w);
     tau_wind = [0 Ywind Nwind]';
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -93,12 +122,13 @@ for i = 1:nTimeSteps
     [xdot,tau_total] = ship(x,u,nu_c,tau_wind);
     
     % store simulation data in a table (for testing)
-    simdata(i,:) = [x(1:3)' x(4:6)' x(7) x(8) u(1) u(2) u_d psi_d r_d];     
+    simdata(i,:) = [x(1:3)' x(4:6)' x(7) x(8) u(1) u(2) u_d psi_d r_d, crab_angle, sideslip_angle];     
  
     % Euler integration
     % x = euler2(xdot,x,h); 
     % Runge Kutta 4 integration
     x = rk4(@ship,h,x,u,nu_c,tau_wind);
+    
 
     % --- Progress Update Logic ---
     if mod(i, floor(nTimeSteps / 10)) == 0 % Print an update every 10%
@@ -132,7 +162,19 @@ psi_d       = simdata(:,12);                % rad
 psi_d_deg   = (180/pi) * psi_d;             % deg
 r_d         =  simdata(:,13);               % rad/s
 r_d_deg     = (180/pi) * r_d;               % deg/s
+
+crab_angle = simdata(:,14);
+sideslip_angle = simdata(:,15);
 %%
+
+figure(4)
+figure(gcf) %Get current figure
+subplot(411)
+plot(t,crab_angle,t,sideslip_angle,'linewidth',2);
+title('Crab- and sideslip angle'); xlabel('Time (s)');  ylabel('Angle (deg)'); 
+legend('crab angle', 'sideslip angle');
+
+
 figure(3)
 figure(gcf)
 subplot(311)
