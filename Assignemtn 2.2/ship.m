@@ -124,6 +124,7 @@ Yv = -(m-Yvdot)/T2;
 Nr = -(Iz-Nrdot)/T6;
 D = -diag([Xu Yv Nr]);
 
+
 % nonlinear surge damping
 eps = 0.001;
 CR = 0;

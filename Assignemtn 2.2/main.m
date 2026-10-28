@@ -1,6 +1,7 @@
 % Project in TTK4190 Guidance, Navigation and Control of Vehicles 
 %
-% Author:           Atle Sund
+% Author Andreas Frøseth Amundesen, Alexander Kielland, Erik
+% Alexander Standal, Atle Sund
 % Study program:    Your study program
 
 % Add folder for 3-D visualization files
@@ -13,7 +14,9 @@ clc; clear; close all;
 T_final = 1000;	        % Final simulation time (s)
 h = 0.1;                % Sampling time (s)
 
-psi_ref = 10 * pi/180;  % desired yaw angle (rad)
+%psi_ref = 10 * pi/180;  % desired yaw angle (rad)
+
+
 U_ref   = 7;            % desired surge speed (m/s)
 
 % initial states
@@ -22,12 +25,18 @@ nu_0  = [0 0 0]'; % v: u,v,r (surge, sway, roll rate)
 delta_0 = 0;
 n_0 = 0;
 x = [nu_0' eta_0' delta_0 n_0]'; % The state vector can be extended with addional states here
+xd = [0; 0; 0];
+e_int = 0;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % MAIN LOOP
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 t = 0:h:T_final;                % Time vector
 nTimeSteps = length(t);         % Number of time steps
+
+psi_ref = zeros(1,nTimeSteps);
+psi_ref(1:floor(nTimeSteps/2)) = 10 * pi/180;
+psi_ref(floor(nTimeSteps/2)+1:end) = -20 * pi/180;
 
 simdata = zeros(nTimeSteps, 15); % Pre-allocate matrix for efficiency
 
@@ -86,9 +95,18 @@ for i = 1:nTimeSteps
     % psi_d = xd(1);
     % r_d = xd(2);
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    psi_d = psi_ref;
-    r_d = 0;
+    
     u_d = U_ref;
+
+    xd_dot = ref_model(xd,psi_ref(i));
+
+    psi_d = xd(1);
+    r_d = xd(2);
+    r_dot_d = xd(3);
+    
+    xd = xd + h*xd_dot; % Euler integration
+
+
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Part 2, 2d) Add the heading controller here 
@@ -97,7 +115,12 @@ for i = 1:nTimeSteps
     % The result should look like this:
     % delta_c = PID_heading(e_psi,e_r,e_int);
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    delta_c = 0.1;              % rudder angle command (rad)
+
+
+    e_psi = psi_d - psi;
+    e_r = r_d - r;
+    e_int = e_int + h*e_psi;
+    delta_c = PID_heading(e_psi,e_r,e_int);       % rudder angle command (rad)
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Part 2, 3e) Add open loop speed control here
@@ -173,6 +196,9 @@ subplot(411)
 plot(t,crab_angle,t,sideslip_angle,'linewidth',2);
 title('Crab- and sideslip angle'); xlabel('Time (s)');  ylabel('Angle (deg)'); 
 legend('crab angle', 'sideslip angle');
+subplot(412)
+plot(t,psi_ref,'linewidth',2);
+title('yaw ref'); xlabel('Time (s)');  ylabel('Angle (deg)'); 
 
 
 figure(3)
