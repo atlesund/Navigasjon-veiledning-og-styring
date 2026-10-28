@@ -31,7 +31,7 @@ function [xdot,y] = ship(x,u,nu_c,tau_ext)
 % Date:      date
 
 % Check of input and state dimensions
-if (length(x)~= 8),error('x-vector must have dimension 8 !');end
+if (length(x)~= 9),error('x-vector must have dimension 9 !');end
 if (length(u)~= 2),error('u-vector must have dimension 2 !');end
 
 % Dimensional states and input
@@ -41,7 +41,8 @@ n_c     = u(2);
 nu    = x(1:3);
 eta   = x(4:6);
 delta = x(7);
-n     = x(8); 
+n     = x(8);
+Qm    = x(9);
 
 nu_r = nu - nu_c;
 uc = nu_c(1);
@@ -54,7 +55,7 @@ xg = -3.7;              % CG x-ccordinate (m)
 L = 161;                % length (m)
 B = 21.8;               % beam (m)
 T = 8.9;                % draft (m)
-KT = 0.7;               % propeller coefficient (-)
+%KT = 0.7;               % propeller coefficient (-)
 Dia = 3.3;              % propeller diameter (m)
 rho = 1025;             % density of water (m/s^3)
 
@@ -69,6 +70,15 @@ rho = 1025;             % density of water (m/s^3)
 % KT = ...;
 % KQ = ...;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Ja = 0;
+PD = 1.5;
+AEAO = 0.65;
+z = 4;
+persistent KT KQ
+if isempty(KT)
+    [KT,KQ] = wageningen(Ja, PD, AEAO, z);
+end
 
 % rudder limitations
 delta_max  = 40 * pi/180;        % max rudder angle      (rad)
@@ -153,6 +163,7 @@ d = -[Xns Ycf Ncf]';
 % Q = ....
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 thr = rho * Dia^4 * KT * abs(n) * n;    % thrust command (N)
+Q = rho * Dia^5 * KQ * abs(n) * n;      % Actual propeller load torque
 
 % ship dynamics
 R = Rzyx(0,0,eta(3));
@@ -180,8 +191,27 @@ end
 % the result should look like this:
 % n_dot =  .... (computed as function of torque)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-n_dot = (1/10) * (n_c - n);
 
-xdot = [nu_dot' eta_dot' delta_dot n_dot]';
+% Motor and shaft parameters
+Im = 100000;
+Km = 0.6;
+Tm = 10;
+
+
+Qd = rho * Dia^5 * KQ * abs(n_c) * n_c; % Desired propeller torque
+
+% Motor command
+Y = Qd / Km;
+
+% Motor torque dynamics
+Qm_dot = (Km*Y - Qm) / Tm;
+
+% Shaft dynamics
+Qf = 0;  % Neglect friction
+n_dot = (Qm - Q - Qf) / Im;
+
+
+xdot = [nu_dot; eta_dot; delta_dot; n_dot; Qm_dot];
+
 y = tau_total;
 end

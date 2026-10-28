@@ -1,6 +1,6 @@
 function xd_dot = ref_model(xd,psi_ref)
 % Generate the desired heading (psi) and yaw rate (r_d)
-% states = [psi_d, r_d, rdot_d]
+% states = [psi_d, r_d, r_dot_d]
 
 wn = 0.03;
 
