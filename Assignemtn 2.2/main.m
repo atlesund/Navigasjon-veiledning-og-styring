@@ -40,7 +40,7 @@ psi_ref = zeros(1,nTimeSteps);
 psi_ref(1:floor(nTimeSteps/2)) = 10 * pi/180;
 psi_ref(floor(nTimeSteps/2)+1:end) = -20 * pi/180;
 
-simdata = zeros(nTimeSteps, 16); % Pre-allocate matrix for efficiency
+simdata = zeros(nTimeSteps, 18); % Pre-allocate matrix for efficiency
 
 for i = 1:nTimeSteps
 
@@ -72,25 +72,36 @@ for i = 1:nTimeSteps
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Part 2, 1c) Add wind here 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    Vw = 10; % wind speed
-    occurence_time = 200;
-    B_Vw = deg2rad(135); % wind direction
-    p_a = 1.247;
-    c_y = 0.95;
-    c_n = 0.15;
-    L = 161;                % length (m)
-    A_Lw = 10*L;
-
-    gamma_w = psi - B_Vw - pi; % wind angle of attack
+    
 
     Ywind = 0;
     Nwind = 0;
-    Vrw = sqrt((Vw*cos(B_Vw-psi)-u)^2 + ...
-        (Vw*sin(B_Vw-psi)-v)^2);
-
     if t(i) >= 200
-        Ywind = c_y*sin(gamma_w);
-        Nwind = c_n*sin(gamma_w);
+        Vw = 10; % wind speed
+        occurence_time = 200;
+        B_Vw = deg2rad(135); % wind direction
+        rho_a = 1.247;
+        c_y = 0.95;
+        c_n = 0.15;
+        L_oa = 161;                % length (m)
+        A_Lw = 10*L_oa;
+
+        gamma_w = psi - B_Vw - pi; % wind angle of attack
+
+
+        uw = Vw*cos(B_Vw - psi);
+        vw = Vw*sin(B_Vw - psi);
+        u_rw = u - uw;
+        v_rw = v - vw;
+
+        Vrw = sqrt(u_rw^2 + v_rw^2);
+        gamma_rw = -atan2(u_rw, v_rw); % negative sign made it behave weirdly
+
+        CY = c_y*sin(gamma_rw);
+        CN = c_n*sin(2*gamma_rw);
+
+        Ywind = 0.5*rho_a*Vrw^2*CY*A_Lw; % Wind moment in sway
+        Nwind = 0.5*rho_a*Vrw^2*CN*A_Lw*L_oa;  % Wind moment in yaw
     end
     tau_wind = [0 Ywind Nwind]';
     
@@ -126,10 +137,31 @@ for i = 1:nTimeSteps
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
+    %%%%%%%%%%%%% Without anti windup strategy
+
     e_psi = psi_d - psi;
     e_r = r_d - r;
-    e_int = e_int + h*e_psi;
-    delta_c = PID_heading(e_psi,e_r,e_int);       % rudder angle command (rad)
+    %e_int = e_int + h*e_psi;
+    %delta_c = PID_heading(e_psi,e_r,e_int);       % rudder angle command (rad)
+
+
+    %%%%%%%%%%%%% Anti windup strategy
+
+    % Calculate PID command before updating integral
+    delta_c = PID_heading(e_psi, e_r, e_int);
+
+    delta_max = deg2rad(40);
+
+    % Only integrate when not saturated
+    if abs(delta_c) < delta_max || ...
+            (delta_c > delta_max && e_psi < 0) || ...  
+            (delta_c < -delta_max && e_psi > 0)
+
+        e_int = e_int + h*e_psi;
+    end
+
+    % Recalculated command
+    delta_c = PID_heading(e_psi, e_r, e_int);
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Part 2, 3e) Add open loop speed control here
@@ -154,7 +186,7 @@ for i = 1:nTimeSteps
     [xdot,tau_total] = ship(x,u,nu_c,tau_wind);
     
     % store simulation data in a table (for testing)
-    simdata(i,:) = [x(1:3)' x(4:6)' x(7) x(8) u(1) u(2) u_d psi_d r_d, crab_angle, sideslip_angle, e_int];     
+    simdata(i,:) = [x(1:3)' x(4:6)' x(7) x(8) u(1) u(2) u_d psi_d r_d, crab_angle, sideslip_angle, e_int, Nwind, Ywind];     
  
     % Euler integration
     % x = euler2(xdot,x,h); 
@@ -198,7 +230,20 @@ r_d_deg     = (180/pi) * r_d;               % deg/s
 crab_angle = simdata(:,14);
 sideslip_angle = simdata(:,15);
 e_int = simdata(:,16);
+Nwind = simdata(:,17);
+Ywind = simdata(:,18);
 %%
+
+
+
+
+figure(5)
+figure(gcf) %Get current figure
+subplot(511)
+plot(t,Ywind,t,Nwind,'linewidth',2);
+title('Wind components'); xlabel('Time (s)');  ylabel('Moment'); 
+legend('Ywind', 'Nwind');
+
 
 figure(4)
 figure(gcf) %Get current figure
@@ -213,6 +258,7 @@ title('yaw ref'); xlabel('Time (s)');  ylabel('Angle (deg)');
 subplot(413)
 plot(t,e_int,'linewidth',2);
 title('accumulated error'); xlabel('Time (s)');  ylabel('accumulated error (rad s)'); 
+
 
 
 figure(3)

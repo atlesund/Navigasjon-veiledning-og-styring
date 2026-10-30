@@ -27,8 +27,11 @@ function [xdot,y] = ship(x,u,nu_c,tau_ext)
 % Y = total body frame force along the y axis  (N)
 % N = total body frame moment about the z axis (Nm)
 %
-% Author:    name
-% Date:      date
+% Authors: Andreas Frøseth Amundsen (andrefam@stud.ntnu.no), 
+% Alexander Edvard Aschehoug (alexanea@stud.ntnu.no), 
+% Erik Alexander Standal (erikstan@stud.ntnu.no), 
+% Atle Sund (atlesun@stud.ntnu.no)
+% Date:      30.10.26
 
 % Check of input and state dimensions
 if (length(x)~= 9),error('x-vector must have dimension 9 !');end
