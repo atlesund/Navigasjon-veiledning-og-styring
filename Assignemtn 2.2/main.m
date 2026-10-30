@@ -18,7 +18,7 @@ h = 0.1;                % Sampling time (s)
 
 %psi_ref = 10 * pi/180;  % desired yaw angle (rad)
 
-U_ref   = 7;            % desired surge speed (m/s)
+U_ref   = 9;            % desired surge speed (m/s)
 
 % initial states
 eta_0 = [0 0 0]'; % n: x,y,psi
@@ -148,20 +148,23 @@ for i = 1:nTimeSteps
     %%%%%%%%%%%%% Anti windup strategy
 
     % Calculate PID command before updating integral
-    delta_c = PID_heading(e_psi, e_r, e_int);
+    delta_c_unsat = PID_heading(e_psi, e_r, e_int);
 
     delta_max = deg2rad(40);
+    
 
     % Only integrate when not saturated
-    if abs(delta_c) < delta_max || ...
-            (delta_c > delta_max && e_psi < 0) || ...  
-            (delta_c < -delta_max && e_psi > 0)
-
+    if abs(delta_c_unsat) < delta_max || ...
+            (delta_c_unsat > delta_max && e_psi < 0) || ...
+            (delta_c_unsat < -delta_max && e_psi > 0)
+    
         e_int = e_int + h*e_psi;
     end
 
     % Recalculated command
-    delta_c = PID_heading(e_psi, e_r, e_int);
+    delta_c_unsat = PID_heading(e_psi, e_r, e_int);
+    
+    delta_c = max(-delta_max, min(delta_max, delta_c_unsat));
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Part 2, 3e) Add open loop speed control here
@@ -170,7 +173,8 @@ for i = 1:nTimeSteps
     % The result should look like this:
     % n_c = open_loop_speed_control(U_ref);
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    n_c = 10;                   % propeller speed [radians per second (rps)]
+    %n_c = 10;                   % propeller speed [radians per second (rps)]
+    n_c = open_loop_speed_control(U_ref);
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Part 2, 3f) Replace the open loop speed controller, 

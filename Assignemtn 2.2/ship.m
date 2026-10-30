@@ -165,6 +165,7 @@ d = -[Xns Ycf Ncf]';
 % thr = ....
 % Q = ....
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 thr = rho * Dia^4 * KT * abs(n) * n;    % thrust command (N)
 Q = rho * Dia^5 * KQ * abs(n) * n;      % Actual propeller load torque
 
@@ -199,7 +200,6 @@ end
 Im = 100000;
 Km = 0.6;
 Tm = 10;
-
 
 Qd = rho * Dia^5 * KQ * abs(n_c) * n_c; % Desired propeller torque
 
